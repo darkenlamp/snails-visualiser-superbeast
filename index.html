@@ -1,0 +1,1258 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Snails Superbeast</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    body {
+      background: #000;
+      overflow: hidden;
+      cursor: none;
+      font-family: 'SF Mono', 'Fira Code', 'Cascadia Code', 'Consolas', monospace;
+    }
+
+    #hydra-canvas {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100vw;
+      height: 100vh;
+    }
+
+    /* ── Code overlay ── */
+    #code-overlay {
+      position: fixed;
+      bottom: 0;
+      left: 0;
+      right: 0;
+      padding: 20px 24px;
+      background: rgba(0, 0, 0, 0.5);
+      backdrop-filter: blur(4px);
+      -webkit-backdrop-filter: blur(4px);
+      border-top: 1px solid rgba(255, 255, 255, 0.06);
+      font-size: 13px;
+      line-height: 1.7;
+      color: rgba(255, 255, 255, 0.7);
+      white-space: pre-wrap;
+      word-break: break-all;
+      max-height: 30vh;
+      overflow: hidden;
+      transition: opacity 0.4s ease;
+      z-index: 10;
+    }
+
+    #code-overlay.hidden { opacity: 0; pointer-events: none; }
+
+    #cursor-blink {
+      display: inline-block;
+      width: 7px;
+      height: 15px;
+      background: rgba(255, 255, 255, 0.7);
+      vertical-align: text-bottom;
+      animation: blink 0.6s step-end infinite;
+    }
+
+    @keyframes blink {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0; }
+    }
+
+    /* ── Status HUD ── */
+    #status {
+      position: fixed;
+      top: 16px;
+      left: 20px;
+      font-size: 11px;
+      color: rgba(255, 255, 255, 0.3);
+      z-index: 10;
+      transition: opacity 0.4s ease;
+    }
+
+    #status.hidden { opacity: 0; }
+    #status span.on { color: rgba(120, 255, 160, 0.55); }
+    #status span.off { color: rgba(255, 100, 100, 0.4); }
+    #status span.label { color: rgba(255, 255, 255, 0.5); }
+
+    /* ── FFT meter ── */
+    #fft-meter {
+      position: fixed;
+      top: 16px;
+      right: 20px;
+      display: flex;
+      gap: 4px;
+      align-items: flex-end;
+      height: 40px;
+      z-index: 10;
+      transition: opacity 0.4s ease;
+    }
+
+    #fft-meter.hidden { opacity: 0; }
+
+    .fft-bar {
+      width: 8px;
+      background: rgba(255, 255, 255, 0.25);
+      border-radius: 1px;
+      transition: height 0.06s ease;
+    }
+
+    /* ── Theme flash ── */
+    #theme-flash {
+      position: fixed;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      font-size: 28px;
+      font-weight: 300;
+      letter-spacing: 6px;
+      text-transform: uppercase;
+      color: rgba(255, 255, 255, 0.6);
+      z-index: 30;
+      opacity: 0;
+      transition: opacity 0.3s ease;
+      pointer-events: none;
+    }
+
+    #theme-flash.show { opacity: 1; }
+    #theme-flash.fade { opacity: 0; transition: opacity 1.5s ease; }
+
+    /* ── Help overlay ── */
+    #help {
+      position: fixed;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      background: rgba(0, 0, 0, 0.85);
+      backdrop-filter: blur(10px);
+      -webkit-backdrop-filter: blur(10px);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      border-radius: 8px;
+      padding: 28px 40px;
+      font-size: 13px;
+      line-height: 2.1;
+      color: rgba(255, 255, 255, 0.65);
+      z-index: 20;
+      display: none;
+    }
+
+    #help kbd {
+      display: inline-block;
+      background: rgba(255, 255, 255, 0.08);
+      border: 1px solid rgba(255, 255, 255, 0.12);
+      border-radius: 3px;
+      padding: 1px 7px;
+      font-family: inherit;
+      font-size: 12px;
+      color: rgba(255, 255, 255, 0.8);
+      min-width: 24px;
+      text-align: center;
+    }
+
+    #help .section-label {
+      color: rgba(255, 255, 255, 0.35);
+      font-size: 10px;
+      letter-spacing: 2px;
+      text-transform: uppercase;
+      margin-top: 8px;
+      display: block;
+    }
+
+    /* ── Splash ── */
+    #splash {
+      position: fixed;
+      inset: 0;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      background: #000;
+      z-index: 100;
+      cursor: default;
+    }
+
+    #splash h1 {
+      font-size: 16px;
+      font-weight: 300;
+      color: rgba(255, 255, 255, 0.5);
+      letter-spacing: 5px;
+      text-transform: uppercase;
+      margin-bottom: 28px;
+    }
+
+    #splash button {
+      background: rgba(255, 255, 255, 0.06);
+      border: 1px solid rgba(255, 255, 255, 0.12);
+      border-radius: 6px;
+      color: rgba(255, 255, 255, 0.6);
+      font-family: inherit;
+      font-size: 14px;
+      padding: 12px 36px;
+      cursor: pointer;
+      transition: all 0.2s ease;
+    }
+
+    #splash button:hover {
+      background: rgba(255, 255, 255, 0.1);
+      color: rgba(255, 255, 255, 0.85);
+    }
+  </style>
+</head>
+<body>
+
+  <canvas id="hydra-canvas"></canvas>
+
+  <div id="splash">
+    <h1>Snails Superbeast</h1>
+    <button id="start-btn">Start</button>
+  </div>
+
+  <div id="status">
+    mic: <span id="mic-status" class="off">off</span> &nbsp;
+    cam: <span id="cam-status" class="off">off</span> &nbsp;
+    mode: <span id="gen-status" class="off">off</span> &nbsp;
+    theme: <span id="theme-status" class="label">—</span>
+  </div>
+
+  <div id="fft-meter"></div>
+
+  <div id="code-overlay"><span id="cursor-blink"></span></div>
+
+  <div id="theme-flash"></div>
+
+  <div id="help">
+    <span class="section-label">generation</span>
+    <kbd>Space</kbd> &nbsp; force new patch<br>
+    <kbd>M</kbd> &nbsp; toggle mutation mode<br>
+    <kbd>A</kbd> &nbsp; toggle auto mode<br>
+    <br>
+    <span class="section-label">themes</span>
+    <kbd>T</kbd> &nbsp; cycle theme<br>
+    <kbd>1</kbd> Drift &nbsp; <kbd>2</kbd> Tension &nbsp; <kbd>3</kbd> Ember<br>
+    <kbd>4</kbd> Pulse &nbsp; <kbd>5</kbd> Fracture &nbsp; <kbd>6</kbd> Sway<br>
+    <br>
+    <span class="section-label">display</span>
+    <kbd>C</kbd> &nbsp; toggle code overlay<br>
+    <kbd>F</kbd> &nbsp; fullscreen<br>
+    <kbd>H</kbd> &nbsp; toggle HUD<br>
+    <kbd>V</kbd> &nbsp; toggle camera on/off<br>
+    <kbd>?</kbd> &nbsp; this help
+  </div>
+
+  <script src="https://unpkg.com/hydra-synth@1.3.29/dist/hydra-synth.js"></script>
+
+  <script>
+    // =============================================================
+    //  SNAILS SUPERBEAST v2 — Hydra live visualiser
+    // =============================================================
+
+    const FFT_BINS = 4
+
+    // ── State ──
+    let hydra = null
+    let cameraReady = false
+    let currentCode = ''
+    let currentThemeIndex = 0
+    let autoMode = true
+    let mutationActive = false
+    let mutationTimer = null
+    let lifecycleTimer = null
+
+    // Crossfade state
+    let crossfadeAmount = 0   // 0 = o0 visible, 1 = o1 visible
+    let crossfadeTarget = 0   // where we're fading to
+    let crossfading = false
+    let currentOutputBuf = 0  // which buffer holds the current patch (0 or 1)
+    let crossfadeRAF = null
+
+    // Typewriter state
+    let typewriterQueue = ''
+    let typewriterIndex = 0
+    let typewriterTimer = null
+    let typewriterCallback = null
+
+    // Audio energy tracking
+    let energyAccumulator = 0
+    let energySamples = 0
+    let patchStartTime = 0
+
+    // DOM
+    const canvas = document.getElementById('hydra-canvas')
+    const codeOverlay = document.getElementById('code-overlay')
+    const splash = document.getElementById('splash')
+    const startBtn = document.getElementById('start-btn')
+    const micStatus = document.getElementById('mic-status')
+    const camStatus = document.getElementById('cam-status')
+    const genStatus = document.getElementById('gen-status')
+    const themeStatus = document.getElementById('theme-status')
+    const fftMeter = document.getElementById('fft-meter')
+    const helpOverlay = document.getElementById('help')
+    const statusEl = document.getElementById('status')
+    const themeFlash = document.getElementById('theme-flash')
+    const cursorBlink = document.getElementById('cursor-blink')
+
+    // =============================================================
+    //  THEMES
+    // =============================================================
+
+    const THEMES = [
+      // ── 0: DRIFT (ambient) ──
+      {
+        name: 'Drift',
+        sources: ['noise', 'voronoi', 'gradient'],
+        sourceParams: {
+          noise:    { scale: [2, 12],  offset: [0, 0.15] },
+          voronoi:  { scale: [2, 10],  speed: [0, 0.2], blend: [0.2, 0.8] },
+          gradient: { speed: [0, 0.3] },
+          osc:      { freq: [1, 8],    sync: [0, 0.1], offset: [0, 1] },
+          shape:    { sides: [3, 6],   radius: [0.3, 0.8], smooth: [0, 0.05] },
+        },
+        transforms: {
+          geo: ['scrollX', 'scrollY', 'rotate', 'scale'],
+          col: ['color', 'saturate', 'brightness', 'contrast'],
+          mod: ['modulate', 'modulateScale'],
+        },
+        geoParams: {
+          scrollX: { scroll: [0, 0.5], speed: [-0.02, 0.02] },
+          scrollY: { scroll: [0, 0.5], speed: [-0.02, 0.02] },
+          rotate:  { angle: [0, 6.28], speed: [-0.005, 0.005] },
+          scale:   { amount: [0.8, 2] },
+        },
+        colourRange: { r: [0, 0.35], g: [0.05, 0.45], b: [0.15, 0.55] },
+        brightnessRange: [0.05, 0.4],
+        saturationRange: [0.3, 1.5],
+        contrastRange: [0.8, 1.8],
+        blends: ['blend', 'add'],
+        blendAmountRange: [0.2, 0.5],
+        modulateAmountRange: [0.01, 0.15],
+        audioIntensity: 0.3,
+        audioSmooth: 0.85,
+        audioScale: 4,
+        audioCutoff: 0.08,
+        audioReactiveProbability: 0.15,
+        preferredBins: [0, 1],
+        cameraWeight: 0.2,
+        feedbackWeight: 0.25,
+        feedbackRange: [0.005, 0.03],
+        transformCount: [2, 4],
+        blendProbability: 0.2,
+        timing: {
+          baseDuration: [20000, 40000],
+          mutationInterval: 1500,
+          mutationDelta: 0.05,
+          crossfadeDuration: 4000,
+        },
+      },
+
+      // ── 1: TENSION (art noise) ──
+      {
+        name: 'Tension',
+        sources: ['osc', 'noise', 'shape'],
+        sourceParams: {
+          osc:     { freq: [10, 80], sync: [0, 0.5], offset: [0, 3] },
+          noise:   { scale: [5, 30],  offset: [0, 0.5] },
+          shape:   { sides: [3, 8],   radius: [0.1, 0.9], smooth: [0, 0.01] },
+          voronoi: { scale: [5, 25],  speed: [0, 1], blend: [0, 0.5] },
+          gradient:{ speed: [0.5, 2] },
+        },
+        transforms: {
+          geo: ['pixelate', 'kaleid', 'rotate', 'scale', 'repeat'],
+          col: ['invert', 'contrast', 'posterize', 'brightness', 'color'],
+          mod: ['modulate', 'modulateRotate', 'modulateScale'],
+        },
+        geoParams: {
+          pixelate: { x: [3, 40], y: [3, 40] },
+          kaleid:   { sides: [2, 12] },
+          rotate:   { angle: [0, 6.28], speed: [-0.1, 0.1] },
+          scale:    { amount: [0.5, 4] },
+          repeat:   { x: [1, 6], y: [1, 6], offX: [0, 0.5], offY: [0, 0.5] },
+        },
+        colourRange: { r: [0, 1], g: [0, 1], b: [0, 1] },
+        brightnessRange: [-0.2, 0.8],
+        saturationRange: [0, 4],
+        contrastRange: [1.2, 4],
+        blends: ['diff', 'mult', 'add'],
+        blendAmountRange: [0.3, 1],
+        modulateAmountRange: [0.05, 0.4],
+        audioIntensity: 1,
+        audioSmooth: 0.4,
+        audioScale: 10,
+        audioCutoff: 0.02,
+        audioReactiveProbability: 0.45,
+        preferredBins: [0, 1, 2, 3],
+        cameraWeight: 0.3,
+        feedbackWeight: 0.5,
+        feedbackRange: [0.02, 0.12],
+        transformCount: [3, 6],
+        blendProbability: 0.4,
+        timing: {
+          baseDuration: [4000, 8000],
+          mutationInterval: 300,
+          mutationDelta: 0.4,
+          crossfadeDuration: 800,
+        },
+      },
+
+      // ── 2: EMBER (singer-songwriter) ──
+      {
+        name: 'Ember',
+        sources: ['osc', 'noise', 'gradient'],
+        sourceParams: {
+          osc:     { freq: [1, 10],  sync: [0, 0.08], offset: [0.5, 1.5] },
+          noise:   { scale: [1, 8],   offset: [0, 0.1] },
+          gradient:{ speed: [0, 0.2] },
+          voronoi: { scale: [2, 8],   speed: [0, 0.1], blend: [0.3, 0.8] },
+          shape:   { sides: [3, 5],   radius: [0.3, 0.7], smooth: [0.01, 0.05] },
+        },
+        transforms: {
+          geo: ['rotate', 'scale', 'scrollX', 'scrollY'],
+          col: ['color', 'saturate', 'brightness', 'contrast'],
+          mod: ['modulate', 'modulateHue'],
+        },
+        geoParams: {
+          rotate:  { angle: [0, 6.28], speed: [-0.008, 0.008] },
+          scale:   { amount: [0.8, 1.8] },
+          scrollX: { scroll: [0, 0.5], speed: [-0.015, 0.015] },
+          scrollY: { scroll: [0, 0.5], speed: [-0.015, 0.015] },
+        },
+        colourRange: { r: [0.55, 1], g: [0.25, 0.6], b: [0, 0.25] },
+        brightnessRange: [0.1, 0.5],
+        saturationRange: [0.6, 2],
+        contrastRange: [0.8, 1.6],
+        blends: ['blend', 'add'],
+        blendAmountRange: [0.15, 0.45],
+        modulateAmountRange: [0.01, 0.1],
+        audioIntensity: 0.25,
+        audioSmooth: 0.88,
+        audioScale: 4,
+        audioCutoff: 0.08,
+        audioReactiveProbability: 0.12,
+        preferredBins: [1, 2, 3],
+        cameraWeight: 0.5,
+        feedbackWeight: 0.2,
+        feedbackRange: [0.005, 0.025],
+        transformCount: [2, 4],
+        blendProbability: 0.25,
+        timing: {
+          baseDuration: [25000, 45000],
+          mutationInterval: 2000,
+          mutationDelta: 0.03,
+          crossfadeDuration: 5000,
+        },
+      },
+
+      // ── 3: PULSE (live electronica) ──
+      {
+        name: 'Pulse',
+        sources: ['osc', 'shape', 'voronoi'],
+        sourceParams: {
+          osc:     { freq: [5, 40],  sync: [0, 0.3], offset: [0, 3] },
+          shape:   { sides: [3, 8],  radius: [0.2, 0.8], smooth: [0, 0.03] },
+          voronoi: { scale: [3, 15], speed: [0.1, 0.8], blend: [0, 0.6] },
+          noise:   { scale: [3, 15], offset: [0, 0.3] },
+          gradient:{ speed: [0.2, 1] },
+        },
+        transforms: {
+          geo: ['kaleid', 'rotate', 'scale', 'repeat', 'scrollX'],
+          col: ['colorama', 'saturate', 'contrast', 'color', 'brightness'],
+          mod: ['modulate', 'modulateRotate', 'modulateScale'],
+        },
+        geoParams: {
+          kaleid:   { sides: [3, 10] },
+          rotate:   { angle: [0, 6.28], speed: [-0.04, 0.04] },
+          scale:    { amount: [0.6, 3] },
+          repeat:   { x: [1, 4], y: [1, 4], offX: [0, 0.3], offY: [0, 0.3] },
+          scrollX:  { scroll: [0, 1], speed: [-0.05, 0.05] },
+          pixelate: { x: [8, 50], y: [8, 50] },
+        },
+        colourRange: { r: [0, 1], g: [0, 1], b: [0, 1] },
+        brightnessRange: [0.1, 0.7],
+        saturationRange: [1, 4],
+        contrastRange: [1, 2.5],
+        blends: ['add', 'mult', 'diff', 'blend'],
+        blendAmountRange: [0.3, 0.8],
+        modulateAmountRange: [0.02, 0.25],
+        audioIntensity: 0.8,
+        audioSmooth: 0.55,
+        audioScale: 8,
+        audioCutoff: 0.04,
+        audioReactiveProbability: 0.4,
+        preferredBins: [0, 1],
+        cameraWeight: 0.25,
+        feedbackWeight: 0.35,
+        feedbackRange: [0.01, 0.06],
+        transformCount: [3, 5],
+        blendProbability: 0.35,
+        timing: {
+          baseDuration: [10000, 20000],
+          mutationInterval: 600,
+          mutationDelta: 0.15,
+          crossfadeDuration: 2500,
+        },
+      },
+
+      // ── 4: FRACTURE (heavy rock) ──
+      {
+        name: 'Fracture',
+        sources: ['osc', 'noise', 'shape'],
+        sourceParams: {
+          osc:     { freq: [15, 70], sync: [0, 0.4], offset: [0, 3] },
+          noise:   { scale: [5, 25], offset: [0, 0.5] },
+          shape:   { sides: [3, 6],  radius: [0.1, 0.9], smooth: [0, 0.02] },
+          voronoi: { scale: [5, 20], speed: [0.2, 1], blend: [0, 0.4] },
+          gradient:{ speed: [0.5, 2] },
+        },
+        transforms: {
+          geo: ['pixelate', 'rotate', 'scale', 'kaleid', 'repeat'],
+          col: ['contrast', 'color', 'brightness', 'invert', 'posterize'],
+          mod: ['modulate', 'modulateRotate', 'modulateScale', 'modulatePixelate'],
+        },
+        geoParams: {
+          pixelate: { x: [4, 30], y: [4, 30] },
+          rotate:   { angle: [0, 6.28], speed: [-0.08, 0.08] },
+          scale:    { amount: [0.5, 4] },
+          kaleid:   { sides: [2, 8] },
+          repeat:   { x: [1, 5], y: [1, 5], offX: [0, 0.4], offY: [0, 0.4] },
+        },
+        colourRange: { r: [0.4, 1], g: [0, 0.25], b: [0, 0.25] },
+        brightnessRange: [-0.1, 0.6],
+        saturationRange: [0.5, 3],
+        contrastRange: [1.5, 4],
+        blends: ['diff', 'mult', 'add'],
+        blendAmountRange: [0.4, 1],
+        modulateAmountRange: [0.05, 0.35],
+        audioIntensity: 1,
+        audioSmooth: 0.45,
+        audioScale: 10,
+        audioCutoff: 0.03,
+        audioReactiveProbability: 0.5,
+        preferredBins: [0, 3],
+        cameraWeight: 0.2,
+        feedbackWeight: 0.45,
+        feedbackRange: [0.02, 0.1],
+        transformCount: [3, 6],
+        blendProbability: 0.4,
+        timing: {
+          baseDuration: [6000, 14000],
+          mutationInterval: 400,
+          mutationDelta: 0.25,
+          crossfadeDuration: 1200,
+        },
+      },
+
+      // ── 5: SWAY (alt rock) ──
+      {
+        name: 'Sway',
+        sources: ['osc', 'noise', 'voronoi', 'shape', 'gradient'],
+        sourceParams: {
+          osc:     { freq: [3, 25],  sync: [0, 0.2], offset: [0, 2] },
+          noise:   { scale: [2, 15], offset: [0, 0.3] },
+          voronoi: { scale: [3, 12], speed: [0, 0.4], blend: [0.1, 0.6] },
+          shape:   { sides: [3, 7],  radius: [0.2, 0.8], smooth: [0, 0.04] },
+          gradient:{ speed: [0.1, 0.6] },
+        },
+        transforms: {
+          geo: ['rotate', 'scale', 'scrollX', 'scrollY', 'kaleid'],
+          col: ['color', 'saturate', 'contrast', 'brightness', 'colorama'],
+          mod: ['modulate', 'modulateRotate', 'modulateHue'],
+        },
+        geoParams: {
+          rotate:  { angle: [0, 6.28], speed: [-0.03, 0.03] },
+          scale:   { amount: [0.7, 2.5] },
+          scrollX: { scroll: [0, 0.8], speed: [-0.03, 0.03] },
+          scrollY: { scroll: [0, 0.8], speed: [-0.03, 0.03] },
+          kaleid:  { sides: [2, 8] },
+          pixelate:{ x: [10, 50], y: [10, 50] },
+        },
+        colourRange: { r: [0.35, 0.75], g: [0.25, 0.6], b: [0.4, 0.85] },
+        brightnessRange: [0.05, 0.5],
+        saturationRange: [0.5, 2.5],
+        contrastRange: [0.8, 2],
+        blends: ['blend', 'add', 'diff'],
+        blendAmountRange: [0.2, 0.6],
+        modulateAmountRange: [0.02, 0.2],
+        audioIntensity: 0.5,
+        audioSmooth: 0.7,
+        audioScale: 6,
+        audioCutoff: 0.05,
+        audioReactiveProbability: 0.25,
+        preferredBins: [0, 1, 2],
+        cameraWeight: 0.4,
+        feedbackWeight: 0.25,
+        feedbackRange: [0.008, 0.05],
+        transformCount: [2, 5],
+        blendProbability: 0.3,
+        timing: {
+          baseDuration: [12000, 22000],
+          mutationInterval: 800,
+          mutationDelta: 0.12,
+          crossfadeDuration: 3000,
+        },
+      },
+    ]
+
+    // =============================================================
+    //  HELPERS
+    // =============================================================
+
+    function rr(min, max) { return +(min + Math.random() * (max - min)).toFixed(3) }
+    function ri(min, max) { return Math.floor(min + Math.random() * (max - min + 1)) }
+    function pick(arr) { return arr[Math.floor(Math.random() * arr.length)] }
+    function clamp(v, lo, hi) { return Math.max(lo, Math.min(hi, v)) }
+
+    function theme() { return THEMES[currentThemeIndex] }
+
+    // =============================================================
+    //  AUDIO-REACTIVE ARGUMENT GENERATOR
+    // =============================================================
+
+    function audioArg(baseVal) {
+      const t = theme()
+      const bin = pick(t.preferredBins)
+      const mult = rr(1, 6) * t.audioIntensity
+      const offset = baseVal * 0.5
+      return `() => a.fft[${bin}] * ${mult.toFixed(2)} + ${offset.toFixed(2)}`
+    }
+
+    function maybeAudio(val) {
+      const t = theme()
+      if (Math.random() < t.audioReactiveProbability) {
+        return audioArg(val)
+      }
+      return val
+    }
+
+    // =============================================================
+    //  THEME-AWARE CODE GENERATOR
+    // =============================================================
+
+    function genSourceArgs(name) {
+      const t = theme()
+      const p = t.sourceParams[name]
+      if (!p) return ''
+
+      switch (name) {
+        case 'osc':
+          return [maybeAudio(rr(...p.freq)), rr(...p.sync), rr(...p.offset)].join(', ')
+        case 'noise':
+          return [maybeAudio(rr(...p.scale)), rr(...p.offset)].join(', ')
+        case 'voronoi':
+          return [rr(...p.scale), rr(...p.speed), rr(...p.blend)].join(', ')
+        case 'shape':
+          return [ri(...p.sides), rr(...p.radius), rr(...p.smooth)].join(', ')
+        case 'gradient':
+          return rr(...p.speed)
+        default:
+          return ''
+      }
+    }
+
+    function genTransformArgs(name) {
+      const t = theme()
+      const gp = t.geoParams[name]
+
+      switch (name) {
+        // Geometry
+        case 'rotate':
+          return [maybeAudio(rr(...gp.angle)), rr(...gp.speed)].join(', ')
+        case 'scale':
+          return maybeAudio(rr(...gp.amount))
+        case 'pixelate':
+          return [ri(...gp.x), ri(...gp.y)].join(', ')
+        case 'kaleid':
+          return maybeAudio(ri(...gp.sides))
+        case 'scrollX':
+          return [rr(...gp.scroll), rr(...gp.speed)].join(', ')
+        case 'scrollY':
+          return [rr(...gp.scroll), rr(...gp.speed)].join(', ')
+        case 'repeat':
+          return [ri(...gp.x), ri(...gp.y), rr(...gp.offX), rr(...gp.offY)].join(', ')
+
+        // Colour
+        case 'color': {
+          const cr = t.colourRange
+          return [rr(...cr.r), rr(...cr.g), rr(...cr.b)].join(', ')
+        }
+        case 'saturate':
+          return maybeAudio(rr(...t.saturationRange))
+        case 'contrast':
+          return maybeAudio(rr(...t.contrastRange))
+        case 'brightness':
+          return maybeAudio(rr(...t.brightnessRange))
+        case 'colorama':
+          return rr(0, 0.08)
+        case 'posterize':
+          return ri(2, 10)
+        case 'invert':
+          return maybeAudio(rr(0, 1))
+
+        default:
+          return ''
+      }
+    }
+
+    function genModSource() {
+      const t = theme()
+      const name = pick(t.sources)
+      return `${name}(${genSourceArgs(name)})`
+    }
+
+    function generatePatch(targetBuf) {
+      const t = theme()
+      let chain
+
+      // Source: camera or generated
+      if (cameraReady && Math.random() < t.cameraWeight) {
+        chain = 'src(s0)'
+      } else {
+        const src = pick(t.sources)
+        chain = `${src}(${genSourceArgs(src)})`
+      }
+
+      // Transforms
+      const numT = ri(...t.transformCount)
+      const used = new Set()
+
+      // Force at least one colour transform for black screen prevention
+      let hasColour = false
+
+      for (let i = 0; i < numT; i++) {
+        // Pick category — bias toward geo/col, occasional mod
+        let cat
+        if (!hasColour && i === numT - 1) {
+          cat = 'col' // force colour if we haven't had one
+        } else {
+          const cats = Object.keys(t.transforms)
+          cat = pick(cats)
+        }
+
+        const name = pick(t.transforms[cat])
+        if (used.has(name)) continue
+        used.add(name)
+
+        if (cat === 'mod') {
+          const modSrc = genModSource()
+          const amt = maybeAudio(rr(...t.modulateAmountRange))
+          chain += `.${name}(${modSrc}, ${amt})`
+        } else {
+          const args = genTransformArgs(name)
+          chain += `.${name}(${args})`
+          if (cat === 'col') hasColour = true
+        }
+      }
+
+      // Blend with another source
+      if (Math.random() < t.blendProbability) {
+        const blendOp = pick(t.blends)
+        let blendSrc
+        if (cameraReady && Math.random() < t.cameraWeight * 0.5) {
+          blendSrc = 'src(s0)'
+        } else {
+          blendSrc = genModSource()
+        }
+        const blendAmt = t.blendAmountRange ? rr(...t.blendAmountRange) : ''
+        if (blendOp === 'diff') {
+          chain += `.${blendOp}(${blendSrc})`
+        } else {
+          chain += `.${blendOp}(${blendSrc}, ${blendAmt})`
+        }
+      }
+
+      // Feedback
+      if (Math.random() < t.feedbackWeight) {
+        const fbBuf = targetBuf === 0 ? 'o0' : 'o1'
+        chain += `.modulate(${fbBuf}, ${rr(...t.feedbackRange)})`
+      }
+
+      // Black screen prevention: add a brightness floor
+      const br = t.brightnessRange
+      if (br[0] < 0 || br[1] < 0.15) {
+        chain += `.brightness(${rr(0.04, 0.1)})`
+      }
+
+      chain += `.out(o${targetBuf})`
+      return chain
+    }
+
+    // =============================================================
+    //  CROSSFADE ENGINE
+    // =============================================================
+
+    function initCrossfade() {
+      // Set up the permanent blend pipeline on o2
+      crossfadeAmount = 0
+      eval(`src(o0).blend(src(o1), () => crossfadeAmount).out(o2)`)
+      eval(`render(o2)`)
+    }
+
+    function startCrossfade(toTarget, duration, onComplete) {
+      crossfading = true
+      crossfadeTarget = toTarget // 0 or 1
+      const startVal = crossfadeAmount
+      const endVal = toTarget
+      const startTime = performance.now()
+
+      if (crossfadeRAF) cancelAnimationFrame(crossfadeRAF)
+
+      function step(now) {
+        const elapsed = now - startTime
+        const progress = clamp(elapsed / duration, 0, 1)
+        // Smooth ease in-out
+        const eased = progress < 0.5
+          ? 2 * progress * progress
+          : 1 - Math.pow(-2 * progress + 2, 2) / 2
+
+        crossfadeAmount = startVal + (endVal - startVal) * eased
+
+        if (progress >= 1) {
+          crossfadeAmount = endVal
+          crossfading = false
+          if (onComplete) onComplete()
+          return
+        }
+        crossfadeRAF = requestAnimationFrame(step)
+      }
+      crossfadeRAF = requestAnimationFrame(step)
+    }
+
+    // =============================================================
+    //  TYPEWRITER DISPLAY
+    // =============================================================
+
+    function formatCode(code) {
+      return code.replace(/\.\b/g, '\n  .')
+    }
+
+    function startTypewriter(code, onComplete) {
+      // Clear any running typewriter
+      if (typewriterTimer) clearInterval(typewriterTimer)
+
+      const formatted = formatCode(code)
+      typewriterQueue = formatted
+      typewriterIndex = 0
+      typewriterCallback = onComplete
+
+      // Target ~3 seconds of typing, min 20ms per char, max 80ms
+      const targetDuration = 3000
+      const interval = clamp(targetDuration / formatted.length, 15, 70)
+
+      // Add slight randomness to feel human
+      codeOverlay.textContent = ''
+      codeOverlay.appendChild(cursorBlink)
+
+      typewriterTimer = setInterval(() => {
+        if (typewriterIndex >= typewriterQueue.length) {
+          clearInterval(typewriterTimer)
+          typewriterTimer = null
+          if (typewriterCallback) typewriterCallback()
+          return
+        }
+
+        // Type 1-3 chars at a time for natural feel
+        const burst = ri(1, 3)
+        const chunk = typewriterQueue.slice(typewriterIndex, typewriterIndex + burst)
+        typewriterIndex += burst
+
+        // Insert text before cursor
+        const textNode = document.createTextNode(chunk)
+        codeOverlay.insertBefore(textNode, cursorBlink)
+      }, interval + (Math.random() - 0.5) * interval * 0.4)
+    }
+
+    // =============================================================
+    //  AUDIO ENERGY TRACKING
+    // =============================================================
+
+    function getAverageEnergy() {
+      if (!window.a || energySamples === 0) return 0.5
+      return energyAccumulator / energySamples
+    }
+
+    function resetEnergyTracking() {
+      energyAccumulator = 0
+      energySamples = 0
+      patchStartTime = performance.now()
+    }
+
+    function sampleEnergy() {
+      if (!window.a) return
+      let total = 0
+      for (let i = 0; i < FFT_BINS; i++) {
+        total += (a.fft[i] || 0)
+      }
+      energyAccumulator += total / FFT_BINS
+      energySamples++
+    }
+
+    // Calculate dynamic patch duration based on energy
+    function getDynamicDuration() {
+      const t = theme()
+      const [minD, maxD] = t.timing.baseDuration
+      const baseD = rr(minD, maxD)
+      const energy = getAverageEnergy()
+
+      // High energy = longer patch (it's working), low energy = shorter (swap sooner)
+      // energy typically 0-0.5, map to 0.6x-1.4x multiplier
+      const multiplier = 0.6 + energy * 1.6
+      return clamp(baseD * multiplier, minD * 0.5, maxD * 1.5)
+    }
+
+    // =============================================================
+    //  MUTATION ENGINE
+    // =============================================================
+
+    function startMutation() {
+      const t = theme()
+      if (mutationTimer) clearInterval(mutationTimer)
+
+      mutationTimer = setInterval(() => {
+        if (!currentCode) return
+
+        // Find numeric values (avoid array indices like fft[0])
+        const numPattern = /(?<!\[)(?<!\.)(\d+\.\d+)(?!\])/g
+        const nums = [...currentCode.matchAll(numPattern)]
+        if (nums.length === 0) return
+
+        let newCode = currentCode
+        // Mutate 1-2 values per tick
+        const mutations = ri(1, 2)
+        for (let m = 0; m < mutations; m++) {
+          const allNums = [...newCode.matchAll(numPattern)]
+          if (allNums.length === 0) break
+
+          const target = pick(allNums)
+          const val = parseFloat(target[0])
+          const delta = (Math.random() - 0.5) * val * t.timing.mutationDelta * 2
+          const newVal = Math.max(0.001, val + delta).toFixed(3)
+          newCode = newCode.substring(0, target.index)
+            + newVal
+            + newCode.substring(target.index + target[0].length)
+        }
+
+        try {
+          eval(newCode)
+          currentCode = newCode
+          // Update display without typewriter
+          const cursorEl = codeOverlay.querySelector('#cursor-blink')
+          codeOverlay.textContent = formatCode(newCode)
+          if (cursorEl) codeOverlay.appendChild(cursorEl)
+        } catch (e) {
+          // Silent fail, keep old code
+        }
+      }, t.timing.mutationInterval)
+    }
+
+    function stopMutation() {
+      if (mutationTimer) clearInterval(mutationTimer)
+      mutationTimer = null
+    }
+
+    // =============================================================
+    //  LIFECYCLE — generate → crossfade → mutate → repeat
+    // =============================================================
+
+    function runLifecycleStep() {
+      const t = theme()
+
+      // Determine which buffer to target (opposite of current)
+      const targetBuf = currentOutputBuf === 0 ? 1 : 0
+
+      // Generate new patch
+      const code = generatePatch(targetBuf)
+      currentCode = code
+
+      // Execute immediately (renders to target buffer, not visible yet)
+      try {
+        eval(code)
+      } catch (e) {
+        console.warn('Patch error, regenerating:', e.message)
+        const fallback = generatePatch(targetBuf)
+        currentCode = fallback
+        eval(fallback)
+      }
+
+      // Start typewriter display
+      startTypewriter(currentCode, null)
+
+      // Crossfade to the new buffer
+      const crossfadeDuration = t.timing.crossfadeDuration
+      startCrossfade(targetBuf, crossfadeDuration, () => {
+        currentOutputBuf = targetBuf
+
+        // Start mutation after crossfade completes
+        stopMutation()
+        startMutation()
+      })
+
+      // Reset energy tracking for this patch
+      resetEnergyTracking()
+
+      // Schedule next lifecycle step
+      scheduleNext()
+    }
+
+    function scheduleNext() {
+      if (lifecycleTimer) clearTimeout(lifecycleTimer)
+      if (!autoMode) return
+
+      // Use dynamic duration (audio-energy-influenced)
+      const delay = getDynamicDuration()
+
+      lifecycleTimer = setTimeout(() => {
+        if (autoMode) runLifecycleStep()
+      }, delay)
+    }
+
+    function forceNewPatch() {
+      stopMutation()
+      if (lifecycleTimer) clearTimeout(lifecycleTimer)
+      runLifecycleStep()
+    }
+
+    // =============================================================
+    //  THEME SWITCHING
+    // =============================================================
+
+    function setTheme(index) {
+      currentThemeIndex = clamp(index, 0, THEMES.length - 1)
+      const t = theme()
+
+      // Update audio config
+      if (window.a) {
+        a.setSmooth(t.audioSmooth)
+        a.setScale(t.audioScale)
+        a.setCutoff(t.audioCutoff)
+      }
+
+      // Update status
+      themeStatus.textContent = t.name.toLowerCase()
+
+      // Flash theme name
+      themeFlash.textContent = t.name
+      themeFlash.classList.remove('fade')
+      themeFlash.classList.add('show')
+      setTimeout(() => {
+        themeFlash.classList.add('fade')
+        themeFlash.classList.remove('show')
+      }, 1200)
+
+      // Force new patch with the new theme
+      forceNewPatch()
+    }
+
+    function cycleTheme() {
+      setTheme((currentThemeIndex + 1) % THEMES.length)
+    }
+
+    // =============================================================
+    //  FFT METER
+    // =============================================================
+
+    function initFFTMeter() {
+      fftMeter.innerHTML = ''
+      const labels = ['lo', 'md', 'hi', 'air']
+      for (let i = 0; i < FFT_BINS; i++) {
+        const bar = document.createElement('div')
+        bar.className = 'fft-bar'
+        bar.style.height = '2px'
+        bar.title = labels[i] || ''
+        fftMeter.appendChild(bar)
+      }
+    }
+
+    function updateFFTMeter() {
+      if (!window.a) {
+        requestAnimationFrame(updateFFTMeter)
+        return
+      }
+
+      // Sample energy for dynamic timing
+      sampleEnergy()
+
+      const bars = fftMeter.querySelectorAll('.fft-bar')
+      for (let i = 0; i < bars.length; i++) {
+        const val = a.fft[i] || 0
+        bars[i].style.height = Math.max(2, val * 40) + 'px'
+        const alpha = 0.15 + val * 0.6
+        bars[i].style.background = `rgba(255, 255, 255, ${alpha})`
+      }
+      requestAnimationFrame(updateFFTMeter)
+    }
+
+    // =============================================================
+    //  INIT
+    // =============================================================
+
+    async function init() {
+      splash.style.display = 'none'
+
+      canvas.width = window.innerWidth
+      canvas.height = window.innerHeight
+
+      hydra = new Hydra({
+        canvas: canvas,
+        detectAudio: true,
+        makeGlobal: true,
+        width: canvas.width,
+        height: canvas.height,
+      })
+
+      // Configure audio after Hydra init (small delay for Meyda)
+      setTimeout(() => {
+        if (window.a) {
+          a.setBins(FFT_BINS)
+          const t = theme()
+          a.setSmooth(t.audioSmooth)
+          a.setScale(t.audioScale)
+          a.setCutoff(t.audioCutoff)
+          micStatus.textContent = 'on'
+          micStatus.className = 'on'
+        }
+      }, 600)
+
+      // Init camera
+      try {
+        s0.initCam()
+        cameraReady = true
+        camStatus.textContent = 'on'
+        camStatus.className = 'on'
+      } catch (e) {
+        console.warn('Camera init failed:', e)
+        camStatus.textContent = 'err'
+      }
+
+      // Put something on both buffers so crossfade has material
+      eval(`solid(0, 0, 0).out(o0)`)
+      eval(`solid(0, 0, 0).out(o1)`)
+
+      // Init crossfade pipeline
+      initCrossfade()
+
+      // FFT meter
+      initFFTMeter()
+      requestAnimationFrame(updateFFTMeter)
+
+      // Set initial theme
+      themeStatus.textContent = theme().name.toLowerCase()
+
+      // Start lifecycle
+      genStatus.textContent = 'auto'
+      genStatus.className = 'on'
+      autoMode = true
+      mutationActive = true
+
+      // Small delay to let audio settle
+      setTimeout(() => {
+        runLifecycleStep()
+      }, 800)
+    }
+
+    startBtn.addEventListener('click', init)
+
+    // =============================================================
+    //  KEYBOARD CONTROLS
+    // =============================================================
+
+    let hudVisible = true
+    let codeVisible = true
+    let helpVisible = false
+
+    document.addEventListener('keydown', (e) => {
+      if (!hydra) return
+
+      switch (e.key) {
+        case ' ':
+          e.preventDefault()
+          forceNewPatch()
+          break
+
+        case 'm':
+        case 'M':
+          mutationActive = !mutationActive
+          if (mutationActive) {
+            startMutation()
+            genStatus.textContent = autoMode ? 'auto+mut' : 'mutate'
+          } else {
+            stopMutation()
+            genStatus.textContent = autoMode ? 'auto' : 'manual'
+          }
+          genStatus.className = 'on'
+          break
+
+        case 'a':
+        case 'A':
+          autoMode = !autoMode
+          if (autoMode) {
+            scheduleNext()
+            genStatus.textContent = mutationActive ? 'auto+mut' : 'auto'
+          } else {
+            if (lifecycleTimer) clearTimeout(lifecycleTimer)
+            genStatus.textContent = mutationActive ? 'mutate' : 'manual'
+          }
+          genStatus.className = 'on'
+          break
+
+        case 't':
+        case 'T':
+          cycleTheme()
+          break
+
+        case 'c':
+        case 'C':
+          codeVisible = !codeVisible
+          codeOverlay.classList.toggle('hidden', !codeVisible)
+          break
+
+        case 'f':
+        case 'F':
+          if (document.fullscreenElement) {
+            document.exitFullscreen()
+          } else {
+            document.documentElement.requestFullscreen()
+          }
+          break
+
+        case 'h':
+        case 'H':
+          hudVisible = !hudVisible
+          statusEl.classList.toggle('hidden', !hudVisible)
+          fftMeter.classList.toggle('hidden', !hudVisible)
+          break
+
+        case 'v':
+        case 'V':
+          cameraReady = !cameraReady
+          if (cameraReady) {
+            try { s0.initCam(); camStatus.textContent = 'on'; camStatus.className = 'on' }
+            catch (e) { cameraReady = false; camStatus.textContent = 'err' }
+          } else {
+            // Replace camera with black so it's not stuck on last frame
+            eval(`solid(0,0,0).out(s0)`)
+            camStatus.textContent = 'off'
+            camStatus.className = 'off'
+          }
+          break
+
+        case '?':
+          helpVisible = !helpVisible
+          helpOverlay.style.display = helpVisible ? 'block' : 'none'
+          break
+
+        case '1': setTheme(0); break  // Drift
+        case '2': setTheme(1); break  // Tension
+        case '3': setTheme(2); break  // Fracture... no wait
+        case '4': setTheme(3); break
+        case '5': setTheme(4); break
+        case '6': setTheme(5); break
+      }
+    })
+
+    // Handle resize
+    window.addEventListener('resize', () => {
+      canvas.width = window.innerWidth
+      canvas.height = window.innerHeight
+    })
+  </script>
+</body>
+</html>
