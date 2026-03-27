@@ -249,6 +249,9 @@
 
     const FFT_BINS = 4
 
+    // Per-bin gain: attenuate bass (bin 0), slight low-mid cut, keep highs
+    const BIN_GAIN = [0.4, 0.7, 1.0, 1.0]
+
     // ── State ──
     let hydra = null
     let cameraReady = false
@@ -328,8 +331,8 @@
         modulateAmountRange: [0.01, 0.15],
         audioIntensity: 0.3,
         audioSmooth: 0.85,
-        audioScale: 4,
-        audioCutoff: 0.08,
+        audioScale: 2.7,
+        audioCutoff: 0.12,
         audioReactiveProbability: 0.15,
         preferredBins: [0, 1],
         cameraWeight: 0.2,
@@ -377,8 +380,8 @@
         modulateAmountRange: [0.05, 0.4],
         audioIntensity: 1,
         audioSmooth: 0.4,
-        audioScale: 10,
-        audioCutoff: 0.02,
+        audioScale: 6.5,
+        audioCutoff: 0.05,
         audioReactiveProbability: 0.45,
         preferredBins: [0, 1, 2, 3],
         cameraWeight: 0.3,
@@ -425,8 +428,8 @@
         modulateAmountRange: [0.01, 0.1],
         audioIntensity: 0.25,
         audioSmooth: 0.88,
-        audioScale: 4,
-        audioCutoff: 0.08,
+        audioScale: 2.7,
+        audioCutoff: 0.12,
         audioReactiveProbability: 0.12,
         preferredBins: [1, 2, 3],
         cameraWeight: 0.5,
@@ -475,8 +478,8 @@
         modulateAmountRange: [0.02, 0.25],
         audioIntensity: 0.8,
         audioSmooth: 0.55,
-        audioScale: 8,
-        audioCutoff: 0.04,
+        audioScale: 5.3,
+        audioCutoff: 0.07,
         audioReactiveProbability: 0.4,
         preferredBins: [0, 1],
         cameraWeight: 0.25,
@@ -524,8 +527,8 @@
         modulateAmountRange: [0.05, 0.35],
         audioIntensity: 1,
         audioSmooth: 0.45,
-        audioScale: 10,
-        audioCutoff: 0.03,
+        audioScale: 6.5,
+        audioCutoff: 0.06,
         audioReactiveProbability: 0.5,
         preferredBins: [0, 3],
         cameraWeight: 0.2,
@@ -574,8 +577,8 @@
         modulateAmountRange: [0.02, 0.2],
         audioIntensity: 0.5,
         audioSmooth: 0.7,
-        audioScale: 6,
-        audioCutoff: 0.05,
+        audioScale: 4,
+        audioCutoff: 0.08,
         audioReactiveProbability: 0.25,
         preferredBins: [0, 1, 2],
         cameraWeight: 0.4,
@@ -610,7 +613,8 @@
     function audioArg(baseVal) {
       const t = theme()
       const bin = pick(t.preferredBins)
-      const mult = rr(1, 6) * t.audioIntensity
+      const gain = BIN_GAIN[bin] || 1.0
+      const mult = rr(1, 6) * t.audioIntensity * gain
       const offset = baseVal * 0.5
       return `() => a.fft[${bin}] * ${mult.toFixed(2)} + ${offset.toFixed(2)}`
     }
@@ -769,6 +773,12 @@
       const br = t.brightnessRange
       if (br[0] < 0 || br[1] < 0.15) {
         chain += `.brightness(${rr(0.04, 0.1)})`
+      }
+
+      // White screen prevention: pull back if theme allows hot brightness/contrast
+      const cr = t.contrastRange
+      if (br[1] > 0.4 || cr[1] > 2) {
+        chain += `.brightness(${rr(-0.12, -0.03)})`
       }
 
       chain += `.out(o${targetBuf})`
@@ -1111,16 +1121,10 @@
         }
       }, 600)
 
-      // Init camera
-      try {
-        s0.initCam()
-        cameraReady = true
-        camStatus.textContent = 'on'
-        camStatus.className = 'on'
-      } catch (e) {
-        console.warn('Camera init failed:', e)
-        camStatus.textContent = 'err'
-      }
+      // Camera defaults to off — press V to enable
+      cameraReady = false
+      camStatus.textContent = 'off'
+      camStatus.className = 'off'
 
       // Put something on both buffers so crossfade has material
       eval(`solid(0, 0, 0).out(o0)`)
@@ -1241,10 +1245,10 @@
 
         case '1': setTheme(0); break  // Drift
         case '2': setTheme(1); break  // Tension
-        case '3': setTheme(2); break  // Fracture... no wait
-        case '4': setTheme(3); break
-        case '5': setTheme(4); break
-        case '6': setTheme(5); break
+        case '3': setTheme(2); break  // Ember
+        case '4': setTheme(3); break  // Pulse
+        case '5': setTheme(4); break  // Fracture
+        case '6': setTheme(5); break  // Sway
       }
     })
 
